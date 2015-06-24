@@ -1,6 +1,9 @@
 # DBM Feenix 2.4.3 - Black Temple
+I worked on adjusting the DBM Timers for Feenix 2.4.3 Archangel Server in my time playing on there, since I've stopped doing so there will most likely be not that much of a progress from now on but feel free to keep working on my code or at least report Issues here on GitHub (if you support enough Material for me to fix things without playing myself I might do that).
 
-I worked on adjusting the DBM Timers for Feenix 2.4.3 Archangel Server in my Time playing on there, since I've stopped doing so there will most likely be not that much of a progress from now on but feel free to keep working on my code or at least report Issues feature here on GitHub (if you support enough Material for me to fix things without playing myself I might do that).
+<br \>
+<a href="https://github.com/MOUZU/DBM-Feenix-2.4.3---Black-Temple/releases">Download latest Release</a><br \>
+<a href="http://www.wow-one.com/forum/topic/94594-243-dbm-adjusted-for-feenix/">WOW-ONE.com Forum Thread</a>
 
 
 # Changelist
