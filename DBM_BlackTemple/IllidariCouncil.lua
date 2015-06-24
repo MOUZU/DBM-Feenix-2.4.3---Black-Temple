@@ -1,7 +1,7 @@
 local Council = DBM:NewBossMod("Council", DBM_COUNCIL_NAME, DBM_COUNCIL_DESCRIPTION, DBM_BLACK_TEMPLE, DBM_BT_TAB, 8)
 
-Council.Version		= "1.0"
-Council.Author		= "Tandanu"
+Council.Version		= "1.1"
+Council.Author		= "LYQ"
 
 Council:RegisterCombat("YELL", {DBM_COUNCIL_YELL_PULL1, DBM_COUNCIL_YELL_PULL2, DBM_COUNCIL_YELL_PULL3, DBM_COUNCIL_YELL_PULL4}, DBM_COUNCIL_MOB_GATHIOS, DBM_COUNCIL_NAME, DBM_COUNCIL_MOB_GATHIOS)
 
@@ -27,11 +27,10 @@ Council:AddBarOption("Devotion Aura")
 Council:AddBarOption("Resistance Aura")
 Council:AddBarOption("Spell Shield: (.*)")
 Council:AddBarOption("Melee Shield: (.*)")
+Council:AddBarOption("Next Melee/Spell Shield")
 
 Council:RegisterEvents(
 	"SPELL_CAST_START",
-	"SPELL_HEAL",
-	"SPELL_INTERRUPT",
 	"SPELL_AURA_APPLIED",
 	"SPELL_AURA_REMOVED"
 )
@@ -44,6 +43,10 @@ function Council:OnCombatStart(delay)
 	self:ScheduleAnnounce(840 - delay, DBM_GENERIC_ENRAGE_WARN:format(1, DBM_MIN), 2)
 	self:ScheduleAnnounce(870 - delay, DBM_GENERIC_ENRAGE_WARN:format(30, DBM_SEC), 3)
 	self:ScheduleAnnounce(890 - delay, DBM_GENERIC_ENRAGE_WARN:format(10, DBM_SEC), 4)
+    self:SendSync("CoHHeal")
+    self:StartStatusBarTimer(30 - delay, "Next Melee/Spell Shield", "Interface\\Icons\\Spell_Holy_SealOfProtection")
+    self:ScheduleSelf(45 - delay,"NextShield")
+    self:StartStatusBarTimer(30 - delay, "First Vanish", "Interface\\Icons\\Ability_Vanish")
 end
 
 function Council:OnEvent(event, args)
@@ -52,21 +55,16 @@ function Council:OnEvent(event, args)
 			self:SendSync("CoHCast")
 		elseif args.spellId == 41472 then
 			self:SendSync("DWCast")
-		end
-	elseif event == "SPELL_HEAL" then
-		if args.spellId == 41455 then
-			self:SendSync("CoHHeal")
-		end
-	elseif event == "SPELL_INTERRUPT" then
-		if args.extraSpellId == 41455 then
-			self:SendSync("CoHInterrupt")
+        elseif args.spellId == 41476 or args.spellId == 41479 then   -- idk if this work but it may
+            print("DBM triggered Vanish by SPELL_CAST_START")
+			self:SendSync("Vanish")
 		end
 	elseif event == "SPELL_AURA_APPLIED" then
 		if args.spellId == 41485 then
 			self:SendSync("DP"..tostring(args.destName))
 		elseif args.spellId == 41472 then
 			self:SendSync("DW"..tostring(args.destName))
-		elseif args.spellId == 41476 then
+		elseif args.spellId == 41476 or args.spellId == 41479 then
 			self:SendSync("Vanish")
 		elseif args.spellId == 41475 then
 			self:SendSync("ShieldNormal")
@@ -104,13 +102,19 @@ function Council:OnEvent(event, args)
 			self:SendSync("Protection"..target)
 		end
 	elseif event == "SPELL_AURA_REMOVED" then
-		if args.spellId == 41476 then
+		if args.spellId == 41476 or args.spellId == 41479 then
 			self:SendSync("FadeVanish")
 		end
 	elseif event == "VanishFadeSoon" then
 		if self.Options.WarnVanishFadeSoon then
 			self:Announce(DBM_COUNCIL_WARN_VANISHFADE_SOON, 3)
 		end
+    elseif event == "CoHHeal" then
+        self:SendSync("CoHHeal")
+        self:ScheduleSelf(19.5,"CoHHeal")
+    elseif event == "NextShield" then
+        self:StartStatusBarTimer(45, "Next Melee/Spell Shield", "Interface\\Icons\\Spell_Holy_SealOfProtection")
+        self:ScheduleSelf(60,"NextShield")
 	end
 end
 
@@ -118,7 +122,6 @@ function Council:OnSync(msg)
 	if msg:sub(0, 9) == "Spellward" then
 		msg = msg:sub(10)
 		self:StartStatusBarTimer(15, "Spell Shield: "..msg, "Interface\\Icons\\Spell_Holy_SealOfRighteousness")
-		
 		if self.Options.WarnShieldSpell then
 			if GetLocale():sub(0, 2) ~= "en" then
 				if msg == DBM_COUNCIL_MOB_GATHIOS_EN then
@@ -133,7 +136,9 @@ function Council:OnSync(msg)
 			end
 			self:Announce(DBM_COUNCIL_WARN_SHIELD_SPELL:format(msg), 2)
 		end
-		
+		self:EndStatusBarTimer("Next Melee/Spell Shield")
+        self:UnScheduleSelf("NextShield")
+        self:ScheduleSelf(15,"NextShield")
 	elseif msg == "DWCast" then
 		self:StartStatusBarTimer(2, "Divine Wrath", "Interface\\Icons\\Spell_Holy_SearingLight")
 
@@ -154,15 +159,20 @@ function Council:OnSync(msg)
 			end
 			self:Announce(DBM_COUNCIL_WARN_SHIELD_MELEE:format(msg), 2)
 		end
+        self:EndStatusBarTimer("Next Melee/Spell Shield")
+        self:UnScheduleSelf("NextShield")
+        self:ScheduleSelf(15,"NextShield")
 	elseif msg == "CoHCast" then
 		if self.Options.WarnCoH then
 			self:Announce(DBM_COUNCIL_WARN_CAST_COH, 4)
 		end
 		self:StartStatusBarTimer(2.5, "Circle of Healing", "Interface\\Icons\\Spell_Holy_CircleOfRenewal")
+        self:EndStatusBarTimer("Next Circle of Healing")
+        self:UnScheduleSelf("CoHHeal")
+        self:StartStatusBarTimer(20, "Next Circle of Healing", "Interface\\Icons\\Spell_Holy_CircleOfRenewal")
+        self:ScheduleSelf(19.5,"CoHHeal")
 	elseif msg == "CoHHeal" then
-		self:StartStatusBarTimer(19.5, "Next Circle of Healing", "Interface\\Icons\\Spell_Holy_CircleOfRenewal")
-	elseif msg == "CoHInterrupt" then
-		self:StartStatusBarTimer(14.5, "Next Circle of Healing", "Interface\\Icons\\Spell_Holy_CircleOfRenewal")
+		self:StartStatusBarTimer(20, "Next Circle of Healing", "Interface\\Icons\\Spell_Holy_CircleOfRenewal")
 	elseif msg:sub(0, 2) == "DP" and self.InCombat then
 		msg = msg:sub(3)
 		if self.Options.WarnDP then
@@ -181,15 +191,15 @@ function Council:OnSync(msg)
 
 	elseif msg == "Vanish" and self.Options.WarnVanish then
 		self:Announce(DBM_COUNCIL_WARN_VANISH, 1)
-		self:StartStatusBarTimer(31, "Vanish", "Interface\\Icons\\Ability_Vanish")
-		self:ScheduleEvent(26, "VanishFadeSoon")
+		self:StartStatusBarTimer(27, "Vanish", "Interface\\Icons\\Ability_Vanish")
+		self:ScheduleEvent(22, "VanishFadeSoon")
 	elseif msg == "FadeVanish" and self.Options.WarnVanishFade then
 		self:Announce(DBM_COUNCIL_WARN_VANISH_FADED, 4)
 	elseif msg == "DevAura" then
 		if self.Options.WarnDevAura then
 			self:Announce(DBM_COUNCIL_WARN_AURA_DEV, 1)
 		end
-		self:StartStatusBarTimer(30, "Devotion Aura", "Interface\\Icons\\Spell_Holy_SealOfProtection")
+		self:StartStatusBarTimer(30, "Devotion Aura", "Interface\\Icons\\Spell_Holy_DevotionAura")
 	elseif msg == "ResAura" then
 		if self.Options.WarnResAura then
 			self:Announce(DBM_COUNCIL_WARN_AURA_RES, 1)

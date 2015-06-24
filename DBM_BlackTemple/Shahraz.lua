@@ -1,7 +1,7 @@
 local Shahraz = DBM:NewBossMod("Shahraz", DBM_SHAHRAZ_NAME, DBM_SHAHRAZ_DESCRIPTION, DBM_BLACK_TEMPLE, DBM_BT_TAB, 7)
 
-Shahraz.Version	= "1.0"
-Shahraz.Author	= "Tandanu"
+Shahraz.Version	= "1.1"
+Shahraz.Author	= "LYQ"
 
 Shahraz:RegisterCombat("YELL", DBM_SHAHRAZ_YELL_PULL)
 
@@ -10,9 +10,12 @@ Shahraz:AddOption("WarnBeamSoon", false, DBM_SHAHRAZ_OPTION_BEAM_SOON)
 
 Shahraz:AddBarOption("Enrage")
 Shahraz:AddBarOption("Next Beam", false)
+Shahraz:AddBarOption("Fatal Attraction")
+Shahraz:AddBarOption("Prismatic Aura")
 
 local fa = {}
 local icon = 8
+local auraswitch = true;
 
 Shahraz:RegisterEvents(
 	"SPELL_AURA_APPLIED",
@@ -26,6 +29,8 @@ function Shahraz:OnCombatStart(delay)
 	self:ScheduleSelf(540 - delay, "EnrageWarn", 60)
 	self:ScheduleSelf(570 - delay, "EnrageWarn", 30)
 	self:ScheduleSelf(590 - delay, "EnrageWarn", 10)
+    self:ScheduleSelf(15 - delay,"AuraUpdate")
+    self:StartStatusBarTimer(9 - delay, "First Beam", "Interface\\Icons\\Spell_Shadow_ShadowBolt")
 	
 	fa = {}
 	icon = 8
@@ -65,11 +70,16 @@ function Shahraz:OnEvent(event, arg1)
 		if self.Options.WarnBeamSoon then
 			self:Announce(DBM_SHAHRAZ_WARN_BEAM_SOON, 1)
 		end
-	end
+    elseif event == "AuraUpdate" then
+        self:ScheduleSelf(15,"AuraUpdate")
+        self:StartStatusBarTimer(15, "Prismatic Aura", "Interface\\Icons\\Spell_Arcane_Arcane03")
+    end
 end
 
 function Shahraz:OnSync(msg)
-	if msg:sub(0, 2) == "FA" then
+    if msg == "AuraUpdate" then
+        self:StartStatusBarTimer(15, "Prismatic Aura", "Interface\\Icons\\Spell_Arcane_Arcane03")
+    elseif msg:sub(0, 2) == "FA" then
 		msg = msg:sub(3)
 		table.insert(fa, msg)
 		if self.Options.Announce and DBM.Rank >= 1 then
@@ -79,6 +89,8 @@ function Shahraz:OnSync(msg)
 		end
 		if msg == UnitName("player") then
 			self:AddSpecialWarning(DBM_SHAHRAZ_SPECWARN_FA)
+            -- this timer below should only appear for ppl with the debuff, but there is a possibility that others get that timer synced
+            self:StartStatusBarTimer(30, "Fatal Attraction", "Interface\\Icons\\Spell_Shadow_ShadowMend")
 		end
 		self:UnScheduleSelf("WarnFA")
 		if #fa == 3 then

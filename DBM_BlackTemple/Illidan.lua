@@ -1,7 +1,7 @@
 local Illidan = DBM:NewBossMod("Illidan", DBM_ILLIDAN_NAME, DBM_ILLIDAN_DESCRIPTION, DBM_BLACK_TEMPLE, DBM_BT_TAB, 9)
 
-Illidan.Version		= "1.1"
-Illidan.Author		= "Tandanu"
+Illidan.Version		= "1.2"
+Illidan.Author		= "LYQ"
 Illidan.MinRevision = 764
 
 Illidan:RegisterCombat("YELL", DBM_ILLIDAN_YELL_PULL)
@@ -10,17 +10,17 @@ local flameTargets = {}
 local flamesDown = 0
 local flameBursts = 0
 local demonTargets = {}
+local phase1
 local phase2
 local warnedDemons
 local phase4
 
 Illidan:RegisterEvents(
 	"SPELL_AURA_APPLIED",
-	"SPELL_CAST_SUCCESS",
 	"CHAT_MSG_MONSTER_YELL",
 	"UNIT_DIED",
 	"SPELL_DAMAGE",
-	"UNIT_SPELLCAST_START"
+	"SPELL_CAST_START"
 )
 
 Illidan:AddOption("RangeCheck", true, DBM_ILLIDAN_OPTION_RANGECHECK)
@@ -49,12 +49,15 @@ Illidan:AddBarOption("Demon Phase")
 Illidan:AddBarOption("Normal Phase")
 Illidan:AddBarOption("Shadow Demons")
 Illidan:AddBarOption("Next Flame Burst")
+Illidan:AddBarOption("Draw Soul")
+Illidan:AddBarOption("Next Flame Crash")
 
 function Illidan:OnCombatStart(delay)
 	flameTargets = {}
 	demonTargets = {}
 	flamesDown = 0
 	flameBursts = 0
+    phase1 = true
 	phase2 = nil
 	phase4 = nil
 	delay = delay - 7 - 33 -- 7 = time until combat starts and 33 because the timer will stop while illidan is switching from phase 1->2, 2->3 and 3->4; according to my combatlogs this should be quite accurate
@@ -65,12 +68,17 @@ function Illidan:OnCombatStart(delay)
 	self:ScheduleAnnounce(1440 - delay, DBM_GENERIC_ENRAGE_WARN:format(1, DBM_MIN), 2)
 	self:ScheduleAnnounce(1470 - delay, DBM_GENERIC_ENRAGE_WARN:format(30, DBM_SEC), 3)
 	self:ScheduleAnnounce(1490 - delay, DBM_GENERIC_ENRAGE_WARN:format(10, DBM_SEC), 4)
+    self:StartStatusBarTimer(9, "Combat");	
+    self:StartStatusBarTimer(34.5, "First Shadowfiend", "Interface\\Icons\\Spell_Shadow_Shadowfiend")
+    self:StartStatusBarTimer(62.5, "Draw Soul", "Interface\\Icons\\Spell_Shadow_ConeofSilence")
+    self:StartStatusBarTimer(38.5, "First Flame Crash", "Interface\\Icons\\Spell_Fire_BlueHellfire")
 end
 
 function Illidan:OnCombatEnd()
 	if self.Options.RangeCheck then
 		DBM_Gui_DistanceFrame_Hide()
 	end
+    phase1 = nil
 	phase2 = nil
 	phase4 = nil
 end
@@ -81,6 +89,8 @@ function Illidan:OnEvent(event, args)
 			self:SendSync("EyeBeam")
 		elseif args == DBM_ILLIDAN_YELL_DEMONFORM then
 			self:SendSync("DemonForm")
+        elseif args == DBM_ILLIDAN_YELL_PHASE2 then
+            self:SendSync("Phase2")
 		elseif args == DBM_ILLIDAN_YELL_PHASE4 then
 			self:SendSync("Phase4")
 		elseif args == DBM_ILLIDAN_YELL_START then
@@ -104,10 +114,6 @@ function Illidan:OnEvent(event, args)
 		elseif args.spellId == 40695 then
 			self:SendSync("Caged")
 		end
-	elseif event == "SPELL_CAST_SUCCESS" then
-		if args.spellId == 39855 then
-			self:SendSync("Phase2")
-		end
 	elseif event == "WarnAF" then
 		local msg = ""
 		for i, v in ipairs(flameTargets) do
@@ -129,9 +135,14 @@ function Illidan:OnEvent(event, args)
 			self:Announce(DBM_ILLIDAN_WARN_SHADOWDEMSON:format(msg), 4)
 		end
 		warnedDemons = true
+    elseif event == "NextBarrage" then
+        self:StartStatusBarTimer(63, "Next Dark Barrage", "Interface\\Icons\\Spell_Shadow_PainSpike")
 	elseif event == "UNIT_DIED" then
 		if args.destName == DBM_ILLIDAN_MOB_FLAME then
-			self:SendSync("FlameDown")
+			flamesDown = flamesDown + 1
+            if flamesDown >= 2 then
+                self:SendSync("Phase3")
+            end
 		end
 	elseif event == "SPELL_DAMAGE" then
 		if args.spellId == 41131 then
@@ -140,6 +151,10 @@ function Illidan:OnEvent(event, args)
 	elseif event == "SPELL_CAST_START" then
 		if args.spellId == 41032 then
 			self:SendSync("CastShear")
+        elseif args.spellId == 40904 then
+            self:SendSync("DrawSoul")
+        elseif args.spellId == 40832 then
+            self:SendSync("FlameCrash")
 		end
 	end
 end
@@ -181,9 +196,9 @@ function Illidan:OnSync(msg)
 		if self.Options.WarnBarrageSoon then
 			self:ScheduleAnnounce(42, DBM_ILLIDAN_WARN_BARRAGE_SOON, 1)
 		end
-		self:EndStatusBarTimer("Next Dark Barrage") -- synced timers may only overwrite timers that are about to expire - the barrage timer seems to be quite inaccurate...so send a end timer command before.
-		self:StartStatusBarTimer(44, "Next Dark Barrage", "Interface\\Icons\\Spell_Shadow_PainSpike")
 		self:StartStatusBarTimer(10, "Dark Barrage: "..msg, "Interface\\Icons\\Spell_Shadow_PainSpike")
+        self:ScheduleSelf(10,"NextBarrage")
+        self:EndStatusBarTimer("Next Dark Barrage") -- try this to cancel synched timer from older version
 	elseif msg == "EyeBeam" then
 		if self.Options.WarnEyeBeam then
 			self:Announce(DBM_ILLIDAN_WARN_EYEBEAM, 3)
@@ -202,13 +217,17 @@ function Illidan:OnSync(msg)
 		self:UnScheduleEvent("WarnAF")
 		self:ScheduleEvent(1, "WarnAF")
 	elseif msg == "Phase2" then
+        phase1 = nil
+        self:EndStatusBarTimer("Next Flame Crash")
+        self:EndStatusBarTimer("Draw Soul")
 		if self.Options.WarnPhases then
 			self:Announce(DBM_ILLIDAN_WARN_PHASE2, 4)
 		end
 		if self.Options.WarnBarrageSoon then
-			self:ScheduleAnnounce(76, DBM_ILLIDAN_WARN_BARRAGE_SOON, 1)
+			self:ScheduleAnnounce(82, DBM_ILLIDAN_WARN_BARRAGE_SOON, 1)
 		end
-		self:StartStatusBarTimer(81, "Next Dark Barrage", "Interface\\Icons\\Spell_Shadow_PainSpike")
+		self:StartStatusBarTimer(87, "Next Dark Barrage", "Interface\\Icons\\Spell_Shadow_PainSpike")
+        self:StartStatusBarTimer(15, "Elementals", "Interface\\Icons\\Spell_Fire_Elemental_Totem")
 		phase2 = true
 		flamesDown = 0
 	elseif msg == "Phase3" then
@@ -225,6 +244,7 @@ function Illidan:OnSync(msg)
 		end
 		self:EndStatusBarTimer("Next Dark Barrage")
 		self:UnScheduleAnnounce(DBM_ILLIDAN_WARN_BARRAGE_SOON, 1)
+        self:StartStatusBarTimer(16, "Next Flame Crash", "Interface\\Icons\\Spell_Fire_BlueHellfire")
 	elseif msg == "Phase4" then
 		if self.Options.WarnPhases then
 			self:Announce(DBM_ILLIDAN_WARN_PHASE4, 4)
@@ -247,9 +267,11 @@ function Illidan:OnSync(msg)
 		if self.Options.WarnDemonForm then
 			self:Announce(DBM_ILLIDAN_WARN_PHASE_DEMON, 4)
 		end
-		self:StartStatusBarTimer(74, "Normal Phase", "Interface\\Icons\\INV_Weapon_ShortBlade_07")
-		self:StartStatusBarTimer(34, "Shadow Demons", "Interface\\Icons\\Spell_Shadow_SoulLeech_3")
-		self:StartStatusBarTimer(20, "Next Flame Burst", "Interface\\Icons\\Spell_Fire_BlueRainOfFire")
+        self:EndStatusBarTimer("Demon Phase")
+        self:EndStatusBarTimer("Enrage2")
+		self:StartStatusBarTimer(76, "Normal Phase", "Interface\\Icons\\INV_Weapon_ShortBlade_07")
+		self:StartStatusBarTimer(31, "Shadow Demons", "Interface\\Icons\\Spell_Shadow_SoulLeech_3")
+		self:StartStatusBarTimer(21, "Next Flame Burst", "Interface\\Icons\\Spell_Fire_BlueRainOfFire")
 		if self.Options.WarnDemonForm then
 			self:ScheduleAnnounce(64, DBM_ILLIDAN_WARN_NORMALPHASE_SOON, 2)
 		end
@@ -259,7 +281,7 @@ function Illidan:OnSync(msg)
 		if self.Options.WarnFlameBursts then
 			self:ScheduleAnnounce(15, DBM_ILLIDAN_WARN_FLAMEBURST_SOON, 1)
 		end
-		self:ScheduleMethod(74, "SendSync", "NormalForm")
+		self:ScheduleMethod(77, "SendSync", "NormalForm")
 		warnedDemons = nil
 	elseif msg == "NormalForm" then
 		if self.Options.WarnDemonForm then
@@ -270,18 +292,13 @@ function Illidan:OnSync(msg)
 			self:ScheduleAnnounce(50, DBM_ILLIDAN_WARN_DEMONPHASE_SOON, 3)
 		end
 		if phase4 then
-			self:StartStatusBarTimer(40, "Enrage2", "Interface\\Icons\\Ability_Warrior_EndlessRage")
-			self:ScheduleAnnounce(35, DBM_ILLIDAN_WARN_P4ENRAGE_SOON, 3)
-		end
-	elseif msg == "FlameDown" then
-		flamesDown = flamesDown + 1
-		if flamesDown >= 2 then
-			self:SendSync("Phase3")
+			self:StartStatusBarTimer(41, "Enrage2", "Interface\\Icons\\Ability_Warrior_EndlessRage")
+			self:ScheduleAnnounce(34, DBM_ILLIDAN_WARN_P4ENRAGE_SOON, 3)
 		end
 	elseif msg == "Flameburst" then
 		flameBursts = flameBursts + 1
 		if flameBursts < 3 then
-			self:StartStatusBarTimer(19.5, "Next Flame Burst", "Interface\\Icons\\Spell_Fire_BlueRainOfFire")
+			self:StartStatusBarTimer(21, "Next Flame Burst", "Interface\\Icons\\Spell_Fire_BlueRainOfFire")
 			if self.Options.WarnFlameBursts then
 				self:ScheduleAnnounce(14.5, DBM_ILLIDAN_WARN_FLAMEBURST_SOON, 1)
 			end
@@ -309,5 +326,13 @@ function Illidan:OnSync(msg)
 	elseif msg == "Caged" then
 		self:Announce(DBM_ILLIDAN_WARN_CAGED, 1)
 		self:StartStatusBarTimer(15, "Caged", 40695)
+    elseif msg == "DrawSoul" then
+        if phase1 then
+            self:StartStatusBarTimer(32, "Draw Soul", "Interface\\Icons\\Spell_Shadow_ConeofSilence")
+        end
+    elseif msg == "FlameCrash" then
+        if phase1 then
+            self:StartStatusBarTimer(12, "Next Flame Crash", "Interface\\Icons\\Spell_Fire_BlueHellfire")
+        end
 	end
 end

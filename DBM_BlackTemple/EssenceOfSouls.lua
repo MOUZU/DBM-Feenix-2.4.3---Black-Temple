@@ -1,14 +1,14 @@
 local Souls = DBM:NewBossMod("Souls", DBM_SOULS_NAME, DBM_SOULS_DESCRIPTION, DBM_BLACK_TEMPLE, DBM_BT_TAB, 6)
 
-Souls.Version	= "1.0"
-Souls.Author	= "Tandanu"
+Souls.Version	= "1.1"
+Souls.Author	= "LYQ"
 Souls.MinVersionToSync = 3.00
 
 Souls:RegisterCombat("YELL", DBM_SOULS_YELL_PULL, nil, nil, DBM_SOULS_BOSS_KILL_NAME, 20)
 
 Souls:RegisterEvents(
-	"CHAT_MSG_RAID_BOSS_EMOTE",
 	"CHAT_MSG_MONSTER_YELL",
+    "CHAT_MSG_RAID_BOSS_WHISPER",
 	"SPELL_AURA_APPLIED",
 	"SPELL_CAST_START",
 	"SPELL_DAMAGE"
@@ -35,31 +35,30 @@ Souls:AddBarOption("Mana Drain")
 Souls:AddBarOption("Rune Shield")
 Souls:AddBarOption("Deaden")
 Souls:AddBarOption("Soul Scream")
+Souls:AddBarOption("Seethe")
+Souls:AddBarOption("Soul Drain")
 
 function Souls:OnCombatStart(delay)
 	drainTargets = {}
 	spiteTargets = {}
 	lastFixate = nil
-	self:StartStatusBarTimer(47 - delay, "Next Enrage", "Interface\\Icons\\Spell_Shadow_UnholyFrenzy")
+	self:StartStatusBarTimer(46.5 - delay, "Next Enrage", "Interface\\Icons\\Spell_Shadow_UnholyFrenzy")
 	self:ScheduleSelf(42 - delay, "EnrageWarn")
+    self:StartStatusBarTimer(10 - delay, "Soul Drain", "Interface\\Icons\\Spell_Shadow_Teleport")
 	phase = 1
 end
 
 
 function Souls:OnEvent(event, arg1)
-	if event == "CHAT_MSG_RAID_BOSS_EMOTE" then
-		if arg1 == DBM_SOULS_EMOTE_ENRAGE and self.InCombat then
-			self:Announce(DBM_SOULS_WARN_ENRAGE, 3)
-			self:StartStatusBarTimer(15, "Enrage", "Interface\\Icons\\Spell_Shadow_UnholyFrenzy")
-			self:ScheduleSelf(15, "NextEnrage")
-		end
-	elseif event == "NextEnrage" then
+	if event == "NextEnrage" then
 		self:Announce(DBM_SOULS_WARN_ENRAGE_OVER, 2)
-		self:StartStatusBarTimer(32, "Next Enrage", "Interface\\Icons\\Spell_Shadow_UnholyFrenzy")
-		self:ScheduleSelf(27, "EnrageWarn")
+		self:StartStatusBarTimer(28.5, "Next Enrage", "Interface\\Icons\\Spell_Shadow_UnholyFrenzy")
+        self:ScheduleSelf(26.5, "EnrageWarn")
+    elseif event == "Enrage" then
+        self:StartStatusBarTimer(15, "Enrage", "Interface\\Icons\\Spell_Shadow_UnholyFrenzy")
+		self:ScheduleSelf(15, "NextEnrage")
 	elseif event == "EnrageWarn" then
 		self:Announce(DBM_SOULS_WARN_ENRAGE_SOON, 2)
-	
 	elseif event == "SPELL_AURA_APPLIED" then
 		if arg1.spellId == 41431 and bit.band(arg1.destFlags, COMBATLOG_OBJECT_TYPE_PLAYER) == 0 then
 			self:SendSync("Runeshield")
@@ -92,17 +91,43 @@ function Souls:OnEvent(event, arg1)
 		if arg1 == DBM_SOULS_YELL_DESIRE or arg1:find(DBM_SOULS_YELL_DESIRE_DEMONIC) then
 			phase = 2
 			self:Announce(DBM_SOULS_WARN_DESIRE_INC, 1)
-			self:StartStatusBarTimer(160, "Mana Drain", "Interface\\Icons\\Spell_Shadow_SiphonMana")
-			self:ScheduleSelf(140, "ManaDrainWarn")
+			self:StartStatusBarTimer(135, "Mana Drain", "Interface\\Icons\\Spell_Shadow_SiphonMana")
+			self:ScheduleSelf(115, "ManaDrainWarn")
 			
-			self:StartStatusBarTimer(13.5, "Rune Shield", "Interface\\Icons\\Spell_Arcane_Blast")
-			self:ScheduleSelf(10.5, "RuneShieldWarn")
-			self:StartStatusBarTimer(28, "Deaden", "Interface\\Icons\\Spell_Shadow_SoulLeech_1")
-			self:ScheduleSelf(23, "DeadenWarn")
+			self:StartStatusBarTimer(15.5, "Rune Shield", "Interface\\Icons\\Spell_Arcane_Blast")
+			self:ScheduleSelf(12.5, "RuneShieldWarn")
+			self:StartStatusBarTimer(27, "Deaden", "Interface\\Icons\\Spell_Shadow_SoulLeech_1")
+			self:ScheduleSelf(22, "DeadenWarn")
 		elseif arg1 == DBM_SOULS_YELL_ANGER_INC then
 			phase = 3
 			self:Announce(DBM_SOULS_WARN_ANGER_INC, 1)
+			self:StartStatusBarTimer(5, "First Seethe", "Interface\\Icons\\Ability_Druid_ChallangingRoar")
+            self:StartStatusBarTimer(10, "Soul Scream", "Interface\\Icons\\Spell_Shadow_SoulLeech")
+        elseif arg1 == DBM_SOULS_YELL_END_P1 then
+                -- Phase 1 ended, hide all shit
+            self:EndStatusBarTimer("Enrage")
+            self:UnScheduleSelf("Enrage")
+            self:EndStatusBarTimer("Next Enrage")
+            self:UnScheduleSelf("NextEnrage")
+            self:EndStatusBarTimer("Soul Drain")
+        elseif arg1 == DBM_SOULS_YELL_END_P2 then
+                -- Phase 2 ended, hide all shit
+            self:EndStatusBarTimer("Rune Shield")
+            self:UnScheduleSelf("RuneShieldWarn")
+            self:EndStatusBarTimer("Deaden")
+            self:UnScheduleSelf("DeadenWarn")
+            self:UnScheduleSelf("NextDeaden")
+        elseif arg1 == DBM_SOULS_YELL_SEETHE then
+            self:SendSync("Seethe")
 		end
+    elseif event == "CHAT_MSG_RAID_BOSS_WHISPER" then
+        if arg1 == DBM_SOULS_EMOTE_ENRAGE then
+            self:Announce(DBM_SOULS_WARN_ENRAGE, 3)
+            self:EndStatusBarTimer("Next Enrage")
+            self:UnScheduleSelf("NextEnrage")
+            self:UnScheduleSelf("Enrage")
+            self:ScheduleSelf(3,"Enrage")
+        end
 	elseif event == "ManaDrainWarn" then
 		self:Announce(DBM_SOULS_WARN_MANADRAIN, 1)
 
@@ -114,6 +139,9 @@ function Souls:OnEvent(event, arg1)
 		msg = msg:sub(0, -3)
 		drainTargets = {}
 		self:Announce(DBM_SOULS_WARN_SOULDRAIN:format(msg), 1)
+    elseif event == "NextDeaden" then
+        -- to delay the deaden bar so it only shows after the deaden cast was finished
+        self:StartStatusBarTimer(27.5, "Deaden", "Interface\\Icons\\Spell_Shadow_SoulLeech_1")
 	elseif event == "WarnSpite" then
 		if (GetTime() - lastSpite) > 12 then
 			lastSpite = GetTime()
@@ -151,12 +179,15 @@ end
 function Souls:OnSync(msg)
 	if msg == "Runeshield" then
 		self:Announce(DBM_SOULS_WARN_RUNESHIELD, 3)
-		self:StartStatusBarTimer(15.4, "Rune Shield", "Interface\\Icons\\Spell_Arcane_Blast") -- the timer between 2 runeshields is always about 15.5 seconds in my combatlog...this could be due to delay/lag/whatever, but this timer seems to be quite accurate
+		self:StartStatusBarTimer(50, "Rune Shield", "Interface\\Icons\\Spell_Arcane_Blast")
 		self:ScheduleSelf(12.4, "RuneShieldWarn")
+    elseif msg == "Seethe" then
+        self:StartStatusBarTimer(10, "Seethe", "Interface\\Icons\\Ability_Druid_ChallangingRoar")
+        self:Announce("*** SEETHE UP - CARE WITH AGGRO ***")
 	elseif msg == "Deaden" then
 		self:Announce(DBM_SOULS_WARN_DEADEN, 2)
-		self:StartStatusBarTimer(31.5, "Deaden", "Interface\\Icons\\Spell_Shadow_SoulLeech_1")
-		self:ScheduleSelf(26.5, "DeadenWarn")
+		self:ScheduleSelf(2.5, "NextDeaden")
+		self:ScheduleSelf(25, "DeadenWarn")
 	elseif msg:sub(0, 5) == "Spite" and self.Options.WarnSpite then
 		msg = msg:sub(6)
 		table.insert(spiteTargets, msg)
@@ -175,22 +206,24 @@ function Souls:OnSync(msg)
 		else
 			self:ScheduleSelf(1.5, "WarnDrain")
 		end
+        self:StartStatusBarTimer(20, "Soul Drain", "Interface\\Icons\\Spell_Shadow_Teleport")
 	elseif msg == "DrainCast" then
 		if self.Options.WarnDrainCast then
 			self:Announce(DBM_SOULS_WARN_SOULDRAIN_CAST, 1)
 		end
 	elseif msg:sub(0, 6) == "Fixate" and self.InCombat then
+        -- LYQ: fixate seems to be majorly bugged on feenix, so I'll hide the bar completely
 		msg = msg:sub(7)
 		if lastFixate then
-			self:EndStatusBarTimer(lastFixate)
+			--self:EndStatusBarTimer(lastFixate)
 		end
-		self:StartStatusBarTimer(5.5, "Fixate: "..msg, "Interface\\Icons\\Spell_Shadow_SpectralSight")
+		--self:StartStatusBarTimer(5, "Fixate: "..msg, "Interface\\Icons\\Spell_Shadow_SpectralSight")
 		lastFixate = "Fixate: "..msg
 		if msg == UnitName("player") then
-			self:AddSpecialWarning(DBM_SOULS_SPECWARN_FIXATE)
+			--self:AddSpecialWarning(DBM_SOULS_SPECWARN_FIXATE)
 		end
 		if self.Options.WarnFixate then
-			self:Announce(DBM_SOULS_WARN_FIXATE:format(msg), 2)
+			--self:Announce(DBM_SOULS_WARN_FIXATE:format(msg), 2)
 		end
 	elseif msg == "SoulScream" then
 		self:StartStatusBarTimer(10, "Soul Scream", "Interface\\Icons\\Spell_Shadow_SoulLeech")

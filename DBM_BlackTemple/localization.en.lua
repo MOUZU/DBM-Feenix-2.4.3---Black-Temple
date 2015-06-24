@@ -128,6 +128,10 @@ DBM_SOULS_SPECWARN_SPITE			= "Spite!"
 DBM_SOULS_WARN_ANGER_INC			= "*** Essence of Anger ***";
 DBM_SOULS_WHISPER_SPITE				= "Spite on you!"
 
+DBM_SOULS_YELL_END_P1               = "I don't want to go back!"
+DBM_SOULS_YELL_END_P2               = "I'll be waiting..."
+DBM_SOULS_YELL_SEETHE               = "Beware, coward."
+
 -- Mother Shahraz
 DBM_SHAHRAZ_NAME					= "Mother Shahraz"
 DBM_SHAHRAZ_DESCRIPTION				= "Announces Fatal Attraction, sets an icons and sends whispers. Announces and shows a timer for Beams."
@@ -209,6 +213,7 @@ DBM_ILLIDAN_OPTION_EYEBEAMSOON		= "Show \"Eye Blast soon\" warning"
 DBM_ILLIDAN_YELL_PULL				= "The time has come! The moment is at hand!"
 DBM_ILLIDAN_YELL_EYEBEAM			= "Stare into the eyes of the Betrayer!"
 DBM_ILLIDAN_YELL_DEMONFORM			= "Behold the power... of the demon within!"
+DBM_ILLIDAN_YELL_PHASE2             = "I will not be touched by rabble such as you!"
 DBM_ILLIDAN_YELL_PHASE4				= "Is this it, mortals? Is this all the fury you can muster?"
 DBM_ILLIDAN_MOB_FLAME				= "Flame of Azzinoth"
 DBM_ILLIDAN_SPELL_SHADOWDEMONS		= "Summon Shadow Demons"

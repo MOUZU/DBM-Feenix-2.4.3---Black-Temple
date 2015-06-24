@@ -1,9 +1,9 @@
 local Gorefiend = DBM:NewBossMod("TeronGorefiend", DBM_GOREFIEND_NAME, DBM_GOREFIEND_DESCRIPTION, DBM_BLACK_TEMPLE, DBM_BT_TAB, 4);
 
-Gorefiend.Version		= "1.0";
-Gorefiend.Author		= "Tandanu";
+Gorefiend.Version		= "1.1";
+Gorefiend.Author		= "LYQ";
 
-Gorefiend:RegisterCombat("YELL", DBM_GOREFIEND_YELL_PULL);
+Gorefiend:RegisterCombat("COMBAT", 5, DBM_GOREFIEND_NAME);
 
 Gorefiend:RegisterEvents(
 	"SPELL_AURA_APPLIED"
@@ -13,6 +13,11 @@ Gorefiend:AddOption("WarnIncinerate", false, DBM_GOREFIEND_OPTION_INCINERATE);
 
 Gorefiend:AddBarOption("Vengeful Spirit: (.*)")
 Gorefiend:AddBarOption("Shadow of Death: (.*)")
+Gorefiend:AddBarOption("First Shadow of Death")
+
+function Gorefiend:OnCombatStart(delay)
+    self:StartStatusBarTimer(30 - delay, "First Shadow of Death", "Interface\\Icons\\Spell_Arcane_PrismaticCloak");
+end
 
 function Gorefiend:OnEvent(event, arg1)
 	if event == "SPELL_AURA_APPLIED" then

@@ -1,7 +1,7 @@
 local Najentus = DBM:NewBossMod("Najentus", DBM_NAJENTUS_NAME, DBM_NAJENTUS_DESCRIPTION, DBM_BLACK_TEMPLE, DBM_BT_TAB, 1);
 
-Najentus.Version	= "1.0";
-Najentus.Author		= "Tandanu";
+Najentus.Version	= "1.1";
+Najentus.Author		= "LYQ";
 
 Najentus:RegisterCombat("YELL", DBM_NAJENTUS_YELL_PULL);
 
@@ -16,6 +16,7 @@ Najentus:AddOption("Frame", true, DBM_NAJENTUS_OPTION_FRAME);
 
 Najentus:AddBarOption("Enrage")
 Najentus:AddBarOption("Next Tidal Shield")
+Najentus:AddBarOption("Next Impaling Spine")
 
 function Najentus:OnCombatStart(delay)	
 	self:StartStatusBarTimer(480 - delay, "Enrage", "Interface\\Icons\\Spell_Shadow_UnholyFrenzy");
@@ -27,7 +28,7 @@ function Najentus:OnCombatStart(delay)
 	self:StartStatusBarTimer(60 - delay, "Next Tidal Shield", "Interface\\Icons\\Spell_Nature_CrystalBall");
 	self:ScheduleSelf(57 - delay, "ShowFrame");
 	self:ScheduleSelf(50 - delay, "ShieldWarn");
-	
+	self:StartStatusBarTimer(20 - delay, "Next Impaling Spine", "Interface\\Icons\\Spell_Frost_Iceshard");
 	if self.Options.RangeCheck then
 		DBM_Gui_DistanceFrame_Show();
 	end
@@ -74,11 +75,12 @@ function Najentus:OnSync(msg)
 		if self.Options.Icon then
 			self:SetIcon(msg, 15);
 		end
+        self:StartStatusBarTimer(20, "Next Impaling Spine", "Interface\\Icons\\Spell_Frost_Iceshard");
 	elseif msg == "Shield" then
 		self:Announce(DBM_NAJENTUS_WARN_SHIELD, 3);
 		self:ScheduleSelf(48, "ShieldWarn");
 		self:ScheduleSelf(55, "ShowFrame")
-		self:StartStatusBarTimer(58, "Next Tidal Shield", "Interface\\Icons\\Spell_Nature_CrystalBall");		
+		self:StartStatusBarTimer(60, "Next Tidal Shield", "Interface\\Icons\\Spell_Nature_CrystalBall");		
 	elseif msg == "FadeShield" then
 		self:OnEvent("HideFrame")
 	end
